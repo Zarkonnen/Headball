@@ -5,7 +5,7 @@ const WHITE = "#efe9aa";
 const SCALE = 4;
 const TILE_W = 21 * SCALE;
 const TILE_H = 12 * SCALE;
-const FIELD_TOP_TILES = 4;
+const FIELD_TOP_TILES = 3;
 const FIELD_LEFT_TILES = 1;
 const MAX_ENERGY = 13;
 const TACKLE_COST = 4;
@@ -15,6 +15,8 @@ const INTERCEPT_CHANCE = 0.2;
 const BITE_COST = 7;
 const SCREAM_COST = 5;
 const SCREAM_RADIUS = 1;
+const DEMON_ADVANCE_CHANCE = 0.02;
+const REST_ENERGY = 2;
 
 function simg(i) {
     return {x: i.x * SCALE, y: i.y * SCALE, w: i.w * SCALE, h: i.h * SCALE};
@@ -32,8 +34,8 @@ const HOOP = [simg({x: 94, y: 10, w: 30, h: 26}), simg({x: 107, y: 37, w: 30, h:
 const SPLASH = simg({x: 94, y: 63, w: 52, h: 38});
 
 const NUM_PLAYERS = 5;
-const FIELD_W = 11;
-const FIELD_H = 9;
+const FIELD_W = 9;
+const FIELD_H = 11;
 
 var animTickAccum = 0;
 const ANIM_TICK_LENGTH = 40;
@@ -58,11 +60,31 @@ var sideSlideIn = 0;
 // Initial beheading
 var initialHeadIndex = 0;
 var initialHeadSide = 0;
-var headDemonY = -1;
+var headDemonY = 0;
 var beheadingSplashAmt = 0;
 
 function timg(i, x, y) {
     img(i, (x + FIELD_LEFT_TILES) * TILE_W + Math.floor(TILE_W / 2 / SCALE) * SCALE - Math.floor(i.w / 2 / SCALE) * SCALE, (y + FIELD_TOP_TILES) * TILE_H + Math.floor(TILE_H * 3 / 4 / SCALE) * SCALE - i.h);
+}
+
+function finished() {
+    var alive = false;
+    for (const side of sides) {
+        for (const p of side.players) {
+            if (p.alive) { alive = true; }
+        }
+    }
+    return !alive || demonAdvance >= Math.floor(FIELD_H / 2);
+}
+
+function winner() {
+    if (sides[0].score > sides[1].score) {
+        return sides[0];
+    } else if (sides[0].score < sides[1].score) {
+        return sides[1];
+    } else {
+        return null;
+    }
 }
 
 function tileExists(x, y) {
@@ -130,6 +152,11 @@ function scream() {
     nextTurn();
 }
 
+function rest() {
+    selection.energy = Math.min(MAX_ENERGY, selection.energy + REST_ENERGY);
+    nextTurn();
+}
+
 function button(x, y, w, text, f) {
     const clr = c.fillStyle;
     const hover = rContainsP(x, y, w, 48, cursor);
@@ -141,9 +168,9 @@ function button(x, y, w, text, f) {
     c.fillStyle = clr;
     if (click && rContainsP(x, y, w, 48, click)) {
         f();
-        return false;
+        return 2;
     }
-    return hover;
+    return hover ? 1 : 0;
 }
 
 function toggle(x, y, w, text, v, f) {
@@ -163,8 +190,32 @@ function toggle(x, y, w, text, v, f) {
 }
 
 function nextTurn() {
+    if (Math.random() < DEMON_ADVANCE_CHANCE) {
+        demonAdvance++;
+    }
+    for (const side of sides) {
+        for (const p of side.players) {
+            if (p.alive && (p.y <= demonAdvance || p.y >= FIELD_H - demonAdvance - 1)) {
+                behead(p);
+            }
+        }
+    }
+    if (head != null && head.y <= demonAdvance) {
+        head.y = demonAdvance + 1;
+        head.carrier = playerAt(head);
+    }
+    if (head != null && head.y >= FIELD_H - demonAdvance - 1) {
+        head.y = FIELD_H - demonAdvance - 2;
+        head.carrier = playerAt(head);
+    }
     sideSlideIn = -canvas.width;
-    currentSide = (currentSide + 1) % 2;
+    var alive = false;
+    for (const p of sides[(currentSide + 1) % 2].players) {
+        if (p.alive) { alive = true; }
+    }
+    if (alive) {
+        currentSide = (currentSide + 1) % 2;
+    }
     for (const p of sides[currentSide].players) {
         if (p.alive) {
             p.energy = Math.min(MAX_ENERGY, p.energy + 1);
@@ -257,7 +308,7 @@ function reset() {
     initialHeadIndex = randInt(NUM_PLAYERS);
     initialHeadSide = randInt(2);
     currentSide = initialHeadSide;
-    headDemonY = -1;
+    headDemonY = 0;
     beheadingSplashAmt = 0;
 }
 
@@ -267,6 +318,19 @@ function tick(ms) {
     c.resetTransform();
     c.fillStyle = PURPLE;
     c.fillRect(0, 0, canvas.width, canvas.height);
+    
+    if (finished()) {
+        c.fillStyle = winner() ? winner().color : BROWN;
+        c.font = "64px 'flailedmedium'";
+        const text = winner() ? winner() + " Wins!" : "Draw!";
+        c.fillText(text, canvas.width / 2 - c.measureText(text).width / 2, canvas.height / 3);
+    
+        animTickAccum += ms;
+        if (click != null && animTickAccum > 500) {
+            reset();
+        }
+        return;
+    }
     
     const hoverTile = tileAt(cursor);
     
@@ -303,15 +367,17 @@ function tick(ms) {
     }
     
     // Demons
-    times(FIELD_W, function(x) {
-        if (x == Math.floor(FIELD_W / 2)) {
-            if (beheadingSplashAmt <= 0) {
-                timg(DEMON, x, headDemonY == -1 ? demonAdvance - 1 : headDemonY);
+    times(demonAdvance + 1, function(da) {
+        times(FIELD_W, function(x) {
+            if (x == Math.floor(FIELD_W / 2) && da == demonAdvance) {
+                if (beheadingSplashAmt <= 0) {
+                    timg(DEMON, x, headDemonY == 0 ? da : headDemonY);
+                }
+            } else {
+                timg(IMP, x, da);
             }
-        } else {
-            timg(IMP, x, demonAdvance - 1);
-        }
-        timg(IMP, x, FIELD_H - demonAdvance);
+            timg(IMP, x, FIELD_H - da - 1);
+        });
     });
     
     // Head
@@ -350,7 +416,7 @@ function tick(ms) {
         }
         return;
     }
-    if (headDemonY != -1) {
+    if (headDemonY != 0) {
         if (!animReady(ms)) { return; }
         headDemonY--;
         return;
@@ -359,10 +425,10 @@ function tick(ms) {
     // Control Panel
     sideSlideIn = Math.min(0, sideSlideIn + ms * 2);
     const side = sides[currentSide];
-    var y = (FIELD_TOP_TILES + FIELD_H + 2) * TILE_H;
+    var y = (FIELD_TOP_TILES + FIELD_H + 1) * TILE_H;
     var x = 10;
     c.fillStyle = side.color;
-    c.fillRect(sideSlideIn, y, 1092, 4);
+    c.fillRect(sideSlideIn, y, (FIELD_W + 2) * TILE_W, 4);
     c.font = "32px 'flailedmedium'";
     c.fillText(side.name + (selection == null ? "" : selection == head ? ": Head" : ": Player"), sideSlideIn + 10, y)
     
@@ -377,25 +443,36 @@ function tick(ms) {
         c.fillText(selection.energy + "/13 Energy", x, y + 35);
         x += 200;
         if (head == selection) {
-            if (button(x, y, 120, "Scream", scream)) {
+            var b = button(x, y, 120, "Scream", scream);
+            if (b == 1) {
                 c.fillStyle = SCREAM_COST <= selection.energy ? side.color : BROWN;
                 c.fillText(SCREAM_COST + " Energy Cost", x + 124 + 134, y + 35);
             }
+            if (b == 2) { return; }
             c.fillStyle = side.color;
             if (selection.carrier != null) {
-                if (button(x + 124, y, 120, "Bite", bite)) {
+                b = button(x + 124, y, 120, "Bite", bite);
+                if (b == 1) {
                     c.fillStyle = BITE_COST <= selection.energy ? side.color : BROWN;
                     c.fillText(BITE_COST + " Energy Cost", x + 124 + 134, y + 35);
                 }
+                if (b == 2) { return; }
             }
         } else {
             if (head.carrier == selection) {
                 toggle(x, y, 120, "Pass", tool == "pass", (v) => tool = v ? null : "pass");
+                x += 124;
             } else {
                 toggle(x, y, 120, "Move", tool == "move", (v) => tool = v ? null : "move");
                 x += 124;
                 toggle(x, y, 120, "Tackle", tool == "tackle", (v) => tool = v ? null :"tackle");
+                x += 124;
             }
+            var b = button(x, y, 120, "Rest", rest);
+            if (b == 1) {
+                c.fillText("+ " + REST_ENERGY + " Energy", x + 134, y + 35);
+            }
+            if (b == 2) { return; }
         }
         x += 134;
         
