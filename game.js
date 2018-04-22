@@ -579,10 +579,12 @@ function tick(ms) {
                         if (currentSide == 1) {
                             if (selection.x == 0 && target.x == 0 && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
                                 sides[1].score++;
+                                addParticles(20, 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
                             }
                         } else {
                             if ((selection.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
                                 sides[0].score++;
+                                addParticles(20, FIELD_W - 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
                             }
                         }
                     }
@@ -617,6 +619,7 @@ function tick(ms) {
                     const offset = findTackleOffset(selection, target);
                     selection.x = clickT.x;
                     selection.y = clickT.y;
+                    addParticles(10, clickT.x + 0.5, clickT.y + 1, 0.5, offset.dx * 0.005, offset.dy * 0.005, 0, 0.002);
                     target.x += offset.dx;
                     target.y += offset.dy;
                     target.energy = Math.max(0, target.energy - TACKLE_COST);
