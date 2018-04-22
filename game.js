@@ -138,7 +138,7 @@ function findTackleOffset(tackler, tacklee) {
         } else {
             dy = tackler.y < tacklee.y ? 1 : -1;
         }
-        if (tileExists(tacklee.x + dx, tacklee.y + dy)) {
+        if (tileExists(tacklee.x + dx, tacklee.y + dy) && !playerAt({x: tacklee.x + dx, y: tacklee.y + dy})) {
             return {
                 dx: dx,
                 dy: dy,
@@ -241,6 +241,13 @@ function tick(ms) {
     if (head != null) {
         timg(HEAD[head.side], head.carrier == null ? head.x : head.x - 1 / 3.0, head.y);
     }
+    
+    // Score
+    c.font = "32px 'flailedmedium'";
+    c.fillStyle = sides[0].color;
+    c.fillText(sides[0].name + ": " + sides[0].score, 10, 40);
+    c.fillStyle = sides[1].color;
+    c.fillText(sides[1].name + ": " + sides[1].score, canvas.width - 10 - c.measureText(sides[1].name + ": " + sides[1].score).width, 40);
 
     // Beheading sequence
     if (head == null) {
@@ -282,7 +289,10 @@ function tick(ms) {
     
     y += 8;
     x += 30;
-    if (selection) {
+    
+    if (hoverTile.exists && !tool && playerAt(hoverTile) && playerAt(hoverTile).side == currentSide && playerAt(hoverTile) != selection) {
+        c.fillText(playerAt(hoverTile).energy + "/13 Energy", x, y + 35);
+    } else if (selection) {
         c.fillText(selection.energy + "/13 Energy", x, y + 35);
         x += 200;
         if (head.carrier == selection) {
@@ -334,6 +344,10 @@ function tick(ms) {
                     head.carrier = target;
                     head.x = target.x;
                     head.y = target.y;
+                    const hoopY = Math.floor(FIELD_H / 2);
+                    if (((selection.x == 0 && target.x == 0) || (selection.x == FIELD_W - 1 && target.x == FIELD_W - 1)) && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
+                        sides[target.side].score++;
+                    }
                     nextTurn();
                     return;
                 }
@@ -385,7 +399,7 @@ function tick(ms) {
                 }
             }
         } else {
-            selection = first(side.players, (p) => p.x == clickT.x && p.y == clickT.y);
+            selection = first(side.players, (p) => p.x == clickT.x && p.y == clickT.y && p.alive);
         }
     }
 }
