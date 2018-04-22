@@ -11,6 +11,8 @@ const MAX_ENERGY = 13;
 const TACKLE_COST = 4;
 const PASS_COST_DIV = 3;
 const INTERCEPT_CHANCE = 0.2;
+const BITE_COST = 7;
+const SCREAM_COST = 5;
 
 function simg(i) {
     return {x: i.x * SCALE, y: i.y * SCALE, w: i.w * SCALE, h: i.h * SCALE};
@@ -85,6 +87,19 @@ function behead(player) {
     head = {x: player.x, y: player.y, side: player.side, energy: player.energy, carrier: null};
 }
 
+function bite() {
+    if (selection.energy < BITE_COST) {
+        return;
+    }
+    
+}
+
+function scream() {
+    if (selection.energy < SCREAM_COST) {
+        return;
+    }
+}
+
 function button(x, y, w, text, f) {
     const clr = c.fillStyle;
     const hover = rContainsP(x, y, w, 48, cursor);
@@ -93,11 +108,11 @@ function button(x, y, w, text, f) {
     c.fillRect(x + 4, y + 4, w - 8, 40);
     c.fillStyle = hover ? PURPLE : clr;
     c.fillText(text, x + 8, y + 38);
+    c.fillStyle = clr;
     if (click && rContainsP(x, y, w, 48, click)) {
         f();
-        return true;
     }
-    return false;
+    return hover;
 }
 
 function toggle(x, y, w, text, v, f) {
@@ -313,31 +328,45 @@ function tick(ms) {
     // Control Panel
     sideSlideIn = Math.min(0, sideSlideIn + ms * 2);
     const side = sides[currentSide];
-    var y = (FIELD_TOP_TILES + FIELD_H + 1) * TILE_H;
+    var y = (FIELD_TOP_TILES + FIELD_H + 2) * TILE_H;
     var x = 10;
     c.fillStyle = side.color;
     c.fillRect(sideSlideIn, y, 1092, 4);
     c.font = "32px 'flailedmedium'";
-    c.fillText(side.name, sideSlideIn + 10, y)
+    c.fillText(side.name + (selection == null ? "" : selection == head ? ": Head" : ": Player"), sideSlideIn + 10, y)
     
     y += 8;
     x += 30;
     
     if (hoverTile.exists && !tool && playerAt(hoverTile) && playerAt(hoverTile).side == currentSide && playerAt(hoverTile) != selection) {
         c.fillText(playerAt(hoverTile).energy + "/13 Energy", x, y + 35);
+    } else if (hoverTile.exists && !tool && head != selection && head.side == currentSide && head.x == hoverTile.x && head.y == hoverTile.y) {
+        c.fillText(head.energy + "/13 Energy", x, y + 35);
     } else if (selection) {
         c.fillText(selection.energy + "/13 Energy", x, y + 35);
         x += 200;
-        if (head.carrier == selection) {
-            toggle(x, y, 120, "Pass", tool == "pass", (v) => tool = v ? null : "pass");
+        if (head == selection) {
+            if (button(x, y, 120, "Bite", bite)) {
+                c.fillStyle = BITE_COST <= selection.energy ? side.color : BROWN;
+                c.fillText(BITE_COST + " Energy Cost", x + 124 + 134, y + 35);
+            }
+            c.fillStyle = side.color;
+            if (button(x + 124, y, 120, "Scream", scream)) {
+                c.fillStyle = SCREAM_COST <= selection.energy ? side.color : BROWN;
+                c.fillText(SCREAM_COST + " Energy Cost", x + 124 + 134, y + 35);
+            }
         } else {
-            toggle(x, y, 120, "Move", tool == "move", (v) => tool = v ? null : "move");
-            x += 124;
-            toggle(x, y, 120, "Tackle", tool == "tackle", (v) => tool = v ? null :"tackle");
+            if (head.carrier == selection) {
+                toggle(x, y, 120, "Pass", tool == "pass", (v) => tool = v ? null : "pass");
+            } else {
+                toggle(x, y, 120, "Move", tool == "move", (v) => tool = v ? null : "move");
+                x += 124;
+                toggle(x, y, 120, "Tackle", tool == "tackle", (v) => tool = v ? null :"tackle");
+            }
         }
         x += 134;
         
-        if (hoverTile.exists) {
+        if (head != selection && hoverTile.exists) {
             if (tool == "pass") {
                 const target = playerAt(hoverTile);
                 if (target && target.side == currentSide) {
@@ -446,6 +475,9 @@ function tick(ms) {
             }
         } else {
             selection = first(side.players, (p) => p.x == clickT.x && p.y == clickT.y && p.alive);
+            if (!selection && head.side == currentSide && head.x == clickT.x && head.y == clickT.y) {
+                selection = head;
+            }
         }
     }
 }
