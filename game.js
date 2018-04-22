@@ -65,8 +65,11 @@ var initialHeadSide = 0;
 var headDemonY = 0;
 var beheadingPause = 0;
 
+var impExcitement = 0;
+
 // Anims
 var anims = [];
+var t = 0;
 
 // Particles
 var particles = [];
@@ -163,12 +166,14 @@ function playerAt(t) {
 function behead(player) {
     player.alive = false;
     head = {x: player.x, y: player.y, side: player.side, energy: player.energy, carrier: null};
+    impExcitement = 8000;
 }
 
 function bite() {
     if (selection.energy < BITE_COST) {
         return;
     }
+    addParticles(20, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.001);
     const order = [
         [selection.x, selection.y - 1],
         [selection.x, selection.y + 1],
@@ -196,6 +201,7 @@ function scream() {
     if (selection.energy < SCREAM_COST) {
         return;
     }
+    addParticles(30, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.01);
     selection.energy -= SCREAM_COST;
     for (const np of inRect(selection.x - SCREAM_RADIUS, selection.y - SCREAM_RADIUS, SCREAM_RADIUS * 2 + 1, SCREAM_RADIUS * 2 + 1)) {
         const victim = playerAt(np);
@@ -370,6 +376,8 @@ function reset() {
 reset();
 
 function tick(ms) {
+    t += ms;
+    impExcitement = Math.max(1, impExcitement - ms);
     c.resetTransform();
     c.fillStyle = PURPLE;
     c.fillRect(0, 0, canvas.width, canvas.height);
@@ -433,9 +441,9 @@ function tick(ms) {
                     timg(DEMON, x, headDemonY == 0 ? da : headDemonY);
                 }
             } else {
-                timg(IMP, x, da);
+                timg(IMP, x, da + Math.floor(Math.cos((t + x * 91284) * impExcitement / 30000000)) / 9);
             }
-            timg(IMP, x, FIELD_H - da - 1);
+            timg(IMP, x, FIELD_H - da - 1 + Math.floor(Math.cos((t + x * 48721) * impExcitement / 30000000)) / 9);
         });
     });
     
@@ -605,11 +613,13 @@ function tick(ms) {
                                         if (a.source.x == 0 && target.x == 0 && ((a.source.y > hoopY && target.y < hoopY) || (a.source.y < hoopY && target.y > hoopY))) {
                                             sides[1].score++;
                                             addParticles(20, 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
+                                            impExcitement = 5000;
                                         }
                                     } else {
                                         if ((a.source.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((a.source.y > hoopY && target.y < hoopY) || (a.source.y < hoopY && target.y > hoopY))) {
                                             sides[0].score++;
                                             addParticles(20, FIELD_W - 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
+                                            impExcitement = 5000;
                                         }
                                     }
                                 }
@@ -694,6 +704,7 @@ function tick(ms) {
                                     }
                                 }
                                 nextTurn();
+                                impExcitement = Math.max(1000, impExcitement);
                                 return true;
                             }
                             return false;
