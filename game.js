@@ -8,12 +8,12 @@ const TILE_H = 12 * SCALE;
 const FIELD_TOP_TILES = 3;
 const FIELD_LEFT_TILES = 1;
 const MAX_ENERGY = 13;
-const TACKLE_COST = 4;
-const PASS_BASE = 2;
+const TACKLE_COST = 5;
+const PASS_BASE = 1;
 const PASS_COST_DIV = 3;
-const INTERCEPT_CHANCE = 0.2;
-const BITE_COST = 7;
-const SCREAM_COST = 5;
+const INTERCEPT_CHANCE = 0.25;
+const BITE_COST = 5;
+const SCREAM_COST = 3;
 const SCREAM_RADIUS = 1;
 const DEMON_ADVANCE_CHANCE = 0.02;
 const REST_ENERGY = 2;
@@ -140,9 +140,11 @@ function timg(i, x, y) {
 function finished() {
     var alive = false;
     for (const side of sides) {
+        var alives = 0;
         for (const p of side.players) {
-            if (p.alive) { alive = true; }
+            if (p.alive) { alives++; }
         }
+        if (alives >= 2) { alive = true; }
     }
     return !alive || demonAdvance >= Math.floor(FIELD_H / 2);
 }
@@ -403,7 +405,7 @@ function tick(ms) {
     if (finished()) {
         c.fillStyle = winner() ? winner().color : BROWN;
         c.font = "64px 'flailedmedium'";
-        const text = winner() ? winner() + " Wins!" : "Draw!";
+        const text = winner() ? winner().name + " Wins!" : "Draw!";
         c.fillText(text, canvas.width / 2 - c.measureText(text).width / 2, canvas.height / 3);
     
         animTickAccum += ms;
