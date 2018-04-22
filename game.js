@@ -10,6 +10,7 @@ const FIELD_LEFT_TILES = 1;
 const MAX_ENERGY = 13;
 const TACKLE_COST = 4;
 const PASS_COST_DIV = 3;
+const INTERCEPT_CHANCE = 0.2;
 
 function simg(i) {
     return {x: i.x * SCALE, y: i.y * SCALE, w: i.w * SCALE, h: i.h * SCALE};
@@ -48,6 +49,7 @@ var demonAdvance = 0;
 var currentSide = 0;
 var selection = null;
 var tool = null;
+var sideSlideIn = 0;
 
 // Initial beheading
 var initialHeadIndex = 0;
@@ -115,6 +117,7 @@ function toggle(x, y, w, text, v, f) {
 }
 
 function nextTurn() {
+    sideSlideIn = -canvas.width;
     currentSide = (currentSide + 1) % 2;
     for (const p of sides[currentSide].players) {
         if (p.alive) {
@@ -145,6 +148,34 @@ function findTackleOffset(tackler, tacklee) {
                 dropHead: tileExists(tacklee.x + 2 * dx, tacklee.y + 2 * dy),
                 giveHeadTo: playerAt({x: tacklee.x + 2 * dx, y: tacklee.y + 2 * dy})
             };
+        }
+    }
+    return null;
+}
+
+function findIntercept(thrower, target) {
+    const dx = thrower.x == target.x ? 0 : (thrower.x < target.x ? 1 : -1);
+    const dy = thrower.y == target.y ? 0 : (thrower.y < target.y ? 1 : -1);
+    const order = Math.abs(thrower.y - target.y) > Math.abs(thrower.x - target.x) ?
+        [
+            [thrower.x, thrower.y + dy],
+            [thrower.x + dx, thrower.y],
+            [thrower.x + dx, thrower.y + dy],
+            [target.x - dx, target.y - dy],
+            [target.x - dx, target.y],
+            [target.x, target.y - dy]
+        ] : [
+            [thrower.x + dx, thrower.y],
+            [thrower.x, thrower.y + dy],
+            [thrower.x + dx, thrower.y + dy],
+            [target.x - dx, target.y - dy],
+            [target.x, target.y - dy],
+            [target.x - dx, target.y]
+        ];
+    for (const ipt of order) {
+        const interceptor = playerAt({x: ipt[0], y: ipt[1]});
+        if (interceptor && interceptor.side != thrower.side && Math.random() < INTERCEPT_CHANCE) {
+            return interceptor;
         }
     }
     return null;
@@ -259,6 +290,7 @@ function tick(ms) {
         headDemonHasBeheaded = true;
         beheadingSplashAmt = 300;
         behead(sides[initialHeadSide].players[initialHeadIndex]);
+        sideSlideIn = -canvas.width;
         return;
     }
     if (beheadingSplashAmt > 0) {
@@ -279,13 +311,14 @@ function tick(ms) {
     }
     
     // Control Panel
+    sideSlideIn = Math.min(0, sideSlideIn + ms * 2);
     const side = sides[currentSide];
     var y = (FIELD_TOP_TILES + FIELD_H + 1) * TILE_H;
     var x = 10;
     c.fillStyle = side.color;
-    c.fillRect(0, y, 1092, 4);
+    c.fillRect(sideSlideIn, y, 1092, 4);
     c.font = "32px 'flailedmedium'";
-    c.fillText(side.name , x, y)
+    c.fillText(side.name, sideSlideIn + 10, y)
     
     y += 8;
     x += 30;
@@ -336,18 +369,31 @@ function tick(ms) {
     var clickT = click == null ? {exists: false} : tileAt(click);
     if (clickT.exists) {
         if (selection && tool == "pass") {
-            const target = playerAt(hoverTile);
+            var target = playerAt(hoverTile);
             if (target && target.side == currentSide) {
                 const cost = Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
+                    const intercept = findIntercept(selection, target);
+                    if (intercept) {
+                        target = intercept;
+                    }
                     head.carrier = target;
                     head.x = target.x;
                     head.y = target.y;
                     const hoopY = Math.floor(FIELD_H / 2);
-                    if (((selection.x == 0 && target.x == 0) || (selection.x == FIELD_W - 1 && target.x == FIELD_W - 1)) && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
-                        sides[target.side].score++;
+                    if (!intercept) {
+                        if (currentSide == 1) {
+                            if (selection.x == 0 && target.x == 0 && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
+                                sides[1].score++;
+                            }
+                        } else {
+                            if ((selection.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
+                                sides[0].score++;
+                            }
+                        }
                     }
+                    
                     nextTurn();
                     return;
                 }
@@ -385,9 +431,9 @@ function tick(ms) {
                         head.x += offset.dx;
                         head.y += offset.dy;
                         if (offset.giveHeadTo) {
-                            head.carrier = giveHeadTo;
-                            head.x = giveHeadTo.x;
-                            head.y = giveHeadTo.y;
+                            head.carrier = offset.giveHeadTo;
+                            head.x = offset.giveHeadTo.x;
+                            head.y = offset.giveHeadTo.y;
                         } else if (offset.dropHead) {
                             head.x += offset.dx;
                             head.y += offset.dy;
