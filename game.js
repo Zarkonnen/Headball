@@ -17,6 +17,7 @@ const SCREAM_COST = 5;
 const SCREAM_RADIUS = 1;
 const DEMON_ADVANCE_CHANCE = 0.02;
 const REST_ENERGY = 2;
+const G = 0.0000001;
 
 function simg(i) {
     return {x: i.x * SCALE, y: i.y * SCALE, w: i.w * SCALE, h: i.h * SCALE};
@@ -24,8 +25,9 @@ function simg(i) {
 
 const TILE = simg({x: 10, y: 55, w: 21, h: 12});
 const HOVER_TILE = simg({x: 10, y: 41, w: 21, h: 12});
-const IMP = simg({x: 48, y: 56, w: 11, h: 13});
+const IMP = simg({x: 48, y: 92, w: 11, h: 13});
 const DEMON = simg({x: 70, y: 47, w: 19, h: 44});
+const DEMON_ATTACKING = [simg({x: 148, y: 47, w: 31, h: 44}), simg({x: 32, y: 47, w: 31, h: 44})];
 const PLAYER = [simg({x: 76, y: 15, w: 8, h: 13}), simg({x: 85, y: 15, w: 8, h: 13})];
 const PLAYER_SELECTED = [simg({x: 55, y: 14, w: 10, h: 15}), simg({x: 65, y: 14, w: 10, h: 15})];
 const CORPSE = simg({x: 59, y: 34, w: 15, h: 2});
@@ -38,7 +40,7 @@ const FIELD_W = 9;
 const FIELD_H = 11;
 
 var animTickAccum = 0;
-const ANIM_TICK_LENGTH = 40;
+const ANIM_TICK_LENGTH = 400;
 
 function animReady(ms) {
     animTickAccum += ms;
@@ -61,7 +63,55 @@ var sideSlideIn = 0;
 var initialHeadIndex = 0;
 var initialHeadSide = 0;
 var headDemonY = 0;
-var beheadingSplashAmt = 0;
+var beheadingPause = 0;
+
+// Particles
+var particles = [];
+function addParticles(n, x, y, z, dx, dy, dz, dRandom) {
+    for (var i = 0; i < n; i++) {
+        particles.push({
+            x: x, y: y, z: z,
+            dx: dx + (Math.random() * 2 - 1) * dRandom,
+            dy: dy + (Math.random() * 2 - 1) * dRandom,
+            dz: dz + (Math.random() * 2 - 1) * dRandom,
+            age: randInt(5000)
+        });
+    }
+}
+
+function groundParticles(ms) {
+    c.fillStyle = RED;
+    for (var i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        if (p.z >= 0) {
+            c.fillRect((p.x + FIELD_LEFT_TILES) * TILE_W, (p.y - p.z + FIELD_TOP_TILES) * TILE_H, SCALE, SCALE);
+            p.age += ms;
+            if (p.age > 10000) {
+                particles.splice(i, 1);
+                i--;
+            }
+        }
+    }
+}
+
+function doParticles(ms) {
+    c.fillStyle = RED;
+    for (var i = 0; i < particles.length; i++) {
+        const p = particles[i];
+        p.dz -= G * ms * ms;
+        p.x += p.dx * ms;
+        p.y += p.dy * ms;
+        p.z += p.dz * ms;
+        if (p.z <= 0) {
+            p.z = 0;
+            p.dx = 0;
+            p.dy = 0;
+            p.dz = 0;
+        }
+        c.fillRect((p.x + FIELD_LEFT_TILES) * TILE_W, (p.y - p.z + FIELD_TOP_TILES) * TILE_H, SCALE, SCALE);
+    }
+}
+
 
 function timg(i, x, y) {
     img(i, (x + FIELD_LEFT_TILES) * TILE_W + Math.floor(TILE_W / 2 / SCALE) * SCALE - Math.floor(i.w / 2 / SCALE) * SCALE, (y + FIELD_TOP_TILES) * TILE_H + Math.floor(TILE_H * 3 / 4 / SCALE) * SCALE - i.h);
@@ -197,6 +247,7 @@ function nextTurn() {
         for (const p of side.players) {
             if (p.alive && (p.y <= demonAdvance || p.y >= FIELD_H - demonAdvance - 1)) {
                 behead(p);
+                addParticles(30, p.x + 0.5, p.y + 1, 0.5, 0, 0, 0, 0.001);
             }
         }
     }
@@ -309,7 +360,7 @@ function reset() {
     initialHeadSide = randInt(2);
     currentSide = initialHeadSide;
     headDemonY = 0;
-    beheadingSplashAmt = 0;
+    beheadingPause = 0;
 }
 
 reset();
@@ -338,6 +389,8 @@ function tick(ms) {
     for (const pt of inRect(0, 0, FIELD_W, FIELD_H)) {
         img(hoverTile.x == pt.x && hoverTile.y == pt.y ? HOVER_TILE : TILE, (pt.x  + FIELD_LEFT_TILES)* TILE_W, (pt.y + FIELD_TOP_TILES) * TILE_H);
     }
+    
+    groundParticles(ms);
     
     for (const pt of inRect(0, 0, FIELD_W, FIELD_H)) {
         // Players
@@ -370,7 +423,9 @@ function tick(ms) {
     times(demonAdvance + 1, function(da) {
         times(FIELD_W, function(x) {
             if (x == Math.floor(FIELD_W / 2) && da == demonAdvance) {
-                if (beheadingSplashAmt <= 0) {
+                if (beheadingPause > 0) {
+                    timg(DEMON_ATTACKING[initialHeadSide], x + [-1, 1][initialHeadSide] / 3.0, headDemonY);
+                } else {
                     timg(DEMON, x, headDemonY == 0 ? da : headDemonY);
                 }
             } else {
@@ -382,8 +437,13 @@ function tick(ms) {
     
     // Head
     if (head != null) {
-        timg(HEAD[head.side], head.carrier == null ? head.x : head.x - 1 / 3.0, head.y);
+        timg(HEAD[head.side], head.carrier == null ? head.x : head.x - 1 / 3.0, head.y - (beheadingPause > 0 ? 1 / 3.0 : 0));
+        if (beheadingPause > 0 && Math.random() < ms * 0.01) {
+            addParticles(1, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.0001);
+        }
     }
+    
+    doParticles(ms);
     
     // Score
     c.font = "32px 'flailedmedium'";
@@ -395,25 +455,19 @@ function tick(ms) {
     // Beheading sequence
     if (head == null) {
         if (!animReady(ms)) { return; }
-        if (headDemonY != sides[initialHeadSide].players[initialHeadIndex].y) {
+        if (headDemonY != sides[initialHeadSide].players[initialHeadIndex].y + 1) {
             headDemonY++;
             return;
         }
         headDemonHasBeheaded = true;
-        beheadingSplashAmt = 300;
         behead(sides[initialHeadSide].players[initialHeadIndex]);
+        beheadingPause = ANIM_TICK_LENGTH * 3;
         sideSlideIn = -canvas.width;
+        addParticles(30, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.001);
         return;
     }
-    if (beheadingSplashAmt > 0) {
-        c.fillStyle = PURPLE;
-        c.fillRect(0, 0, canvas.width, canvas.height);
-        beheadingSplashAmt -= ms;
-        if (beheadingSplashAmt > 1) {
-            img(SPLASH, canvas.width / 2 - 30 * SCALE + randInt(3) * SCALE, canvas.height / 2 - 20 * SCALE + randInt(3) * SCALE);
-        } else {
-            img(SPLASH, canvas.width / 2 - 30 * SCALE, canvas.height / 2 - 20 * SCALE);
-        }
+    if (beheadingPause > 0) {
+        beheadingPause -= ms;
         return;
     }
     if (headDemonY != 0) {
