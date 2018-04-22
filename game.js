@@ -40,7 +40,7 @@ const FIELD_W = 9;
 const FIELD_H = 11;
 
 var animTickAccum = 0;
-const ANIM_TICK_LENGTH = 400;
+const ANIM_TICK_LENGTH = 200;
 
 function animReady(ms) {
     animTickAccum += ms;
@@ -465,7 +465,7 @@ function tick(ms) {
         }
         headDemonHasBeheaded = true;
         behead(sides[initialHeadSide].players[initialHeadIndex]);
-        beheadingPause = ANIM_TICK_LENGTH * 3;
+        beheadingPause = ANIM_TICK_LENGTH * 6;
         sideSlideIn = -canvas.width;
         addParticles(30, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.001);
         return;
@@ -586,25 +586,40 @@ function tick(ms) {
                     if (intercept) {
                         target = intercept;
                     }
-                    head.carrier = target;
-                    head.x = target.x;
-                    head.y = target.y;
-                    const hoopY = Math.floor(FIELD_H / 2);
-                    if (!intercept) {
-                        if (currentSide == 1) {
-                            if (selection.x == 0 && target.x == 0 && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
-                                sides[1].score++;
-                                addParticles(20, 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
+                    anims.push({
+                        time: 0,
+                        source: {x: head.x, y: head.y},
+                        target: target,
+                        tick: function(a, ms) {
+                            a.time = Math.min(100, a.time + ms);
+                            head.x = lerp(a.source.x, a.target.x, a.time / 100);
+                            head.y = lerp(a.source.y, a.target.y, a.time / 100);
+                            addParticles(1, head.x, head.y + 1, 1, 0, 0, 0, 0.001);
+                            if (a.time >= 100) {
+                                head.carrier = target;
+                                head.x = target.x;
+                                head.y = target.y;
+                                const hoopY = Math.floor(FIELD_H / 2);
+                                if (!intercept) {
+                                    if (currentSide == 1) {
+                                        if (a.source.x == 0 && target.x == 0 && ((a.source.y > hoopY && target.y < hoopY) || (a.source.y < hoopY && target.y > hoopY))) {
+                                            sides[1].score++;
+                                            addParticles(20, 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
+                                        }
+                                    } else {
+                                        if ((a.source.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((a.source.y > hoopY && target.y < hoopY) || (a.source.y < hoopY && target.y > hoopY))) {
+                                            sides[0].score++;
+                                            addParticles(20, FIELD_W - 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
+                                        }
+                                    }
+                                }
+                                
+                                nextTurn();
+                                return true;
                             }
-                        } else {
-                            if ((selection.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((selection.y > hoopY && target.y < hoopY) || (selection.y < hoopY && target.y > hoopY))) {
-                                sides[0].score++;
-                                addParticles(20, FIELD_W - 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
-                            }
+                            return false;
                         }
-                    }
-                    
-                    nextTurn();
+                    });
                     return;
                 }
             }
