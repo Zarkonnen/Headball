@@ -9,10 +9,12 @@ const FIELD_TOP_TILES = 4;
 const FIELD_LEFT_TILES = 1;
 const MAX_ENERGY = 13;
 const TACKLE_COST = 4;
+const PASS_BASE = 2;
 const PASS_COST_DIV = 3;
 const INTERCEPT_CHANCE = 0.2;
 const BITE_COST = 7;
 const SCREAM_COST = 5;
+const SCREAM_RADIUS = 1;
 
 function simg(i) {
     return {x: i.x * SCALE, y: i.y * SCALE, w: i.w * SCALE, h: i.h * SCALE};
@@ -91,13 +93,41 @@ function bite() {
     if (selection.energy < BITE_COST) {
         return;
     }
+    const order = [
+        [selection.x, selection.y - 1],
+        [selection.x, selection.y + 1],
+        [selection.x - 1, selection.y],
+        [selection.x + 1, selection.y]
+    ];
+    for (const fallp of order) {
+        if (!playerAt({x: fallp[0], y: fallp[1]})) {
+            selection.energy -= BITE_COST;
+            selection.carrier.energy = Math.max(0, selection.carrier.energy - BITE_COST);
+            selection.x = fallp[0];
+            selection.y = fallp[1];
+            selection.carrier = null;
+            nextTurn();
+            return;
+        }
+    }
     
+    selection.energy -= BITE_COST;
+    selection.carrier.energy = Math.max(-1, selection.carrier.energy - BITE_COST);
+    nextTurn();
 }
 
 function scream() {
     if (selection.energy < SCREAM_COST) {
         return;
     }
+    selection.energy -= SCREAM_COST;
+    for (const np of inRect(selection.x - SCREAM_RADIUS, selection.y - SCREAM_RADIUS, SCREAM_RADIUS * 2 + 1, SCREAM_RADIUS * 2 + 1)) {
+        const victim = playerAt(np);
+        if (victim && victim.side != selection.side) {
+            victim.energy = Math.max(0, victim.energy - SCREAM_COST);
+        }
+    }
+    nextTurn();
 }
 
 function button(x, y, w, text, f) {
@@ -111,6 +141,7 @@ function button(x, y, w, text, f) {
     c.fillStyle = clr;
     if (click && rContainsP(x, y, w, 48, click)) {
         f();
+        return false;
     }
     return hover;
 }
@@ -346,14 +377,16 @@ function tick(ms) {
         c.fillText(selection.energy + "/13 Energy", x, y + 35);
         x += 200;
         if (head == selection) {
-            if (button(x, y, 120, "Bite", bite)) {
-                c.fillStyle = BITE_COST <= selection.energy ? side.color : BROWN;
-                c.fillText(BITE_COST + " Energy Cost", x + 124 + 134, y + 35);
-            }
-            c.fillStyle = side.color;
-            if (button(x + 124, y, 120, "Scream", scream)) {
+            if (button(x, y, 120, "Scream", scream)) {
                 c.fillStyle = SCREAM_COST <= selection.energy ? side.color : BROWN;
                 c.fillText(SCREAM_COST + " Energy Cost", x + 124 + 134, y + 35);
+            }
+            c.fillStyle = side.color;
+            if (selection.carrier != null) {
+                if (button(x + 124, y, 120, "Bite", bite)) {
+                    c.fillStyle = BITE_COST <= selection.energy ? side.color : BROWN;
+                    c.fillText(BITE_COST + " Energy Cost", x + 124 + 134, y + 35);
+                }
             }
         } else {
             if (head.carrier == selection) {
@@ -370,7 +403,7 @@ function tick(ms) {
             if (tool == "pass") {
                 const target = playerAt(hoverTile);
                 if (target && target.side == currentSide) {
-                    const cost = Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
+                    const cost = PASS_BASE + Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
                     c.fillStyle = cost <= selection.energy ? side.color : BROWN;
                     c.fillText(cost + " Energy Cost", x, y + 35);
                 }
@@ -400,7 +433,7 @@ function tick(ms) {
         if (selection && tool == "pass") {
             var target = playerAt(hoverTile);
             if (target && target.side == currentSide) {
-                const cost = Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
+                const cost = PASS_BASE + Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
                     const intercept = findIntercept(selection, target);
