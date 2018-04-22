@@ -71,6 +71,19 @@ var impExcitement = 0;
 var anims = [];
 var t = 0;
 
+// Sounds
+function hwl(name, volume, rate) {
+    return new Howl({src: ["sounds/" + name + ".mp3", "sounds/" + name + ".wav"], volume: volume || 1, rate: rate || 1});
+}
+
+const S_BEHEAD = hwl("behead");
+const S_BITE = hwl("bite");
+const S_CHEER = hwl("cheer");
+const S_MOVE = hwl("move");
+const S_SCREAM = hwl("scream");
+const S_TACKLE = hwl("tackle");
+const S_THROW = hwl("throw");
+
 // Particles
 var particles = [];
 function addParticles(n, x, y, z, dx, dy, dz, dRandom) {
@@ -167,12 +180,14 @@ function behead(player) {
     player.alive = false;
     head = {x: player.x, y: player.y, side: player.side, energy: player.energy, carrier: null};
     impExcitement = 8000;
+    S_BEHEAD.play();
 }
 
 function bite() {
     if (selection.energy < BITE_COST) {
         return;
     }
+    S_BITE.play();
     addParticles(20, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.001);
     const order = [
         [selection.x, selection.y - 1],
@@ -201,6 +216,7 @@ function scream() {
     if (selection.energy < SCREAM_COST) {
         return;
     }
+    S_SCREAM.play();
     addParticles(30, head.x + 0.5, head.y + 1, 0.5, 0, 0, 0, 0.01);
     selection.energy -= SCREAM_COST;
     for (const np of inRect(selection.x - SCREAM_RADIUS, selection.y - SCREAM_RADIUS, SCREAM_RADIUS * 2 + 1, SCREAM_RADIUS * 2 + 1)) {
@@ -252,6 +268,8 @@ function toggle(x, y, w, text, v, f) {
 function nextTurn() {
     if (Math.random() < DEMON_ADVANCE_CHANCE) {
         demonAdvance++;
+        impExcitement = 5000;
+        S_CHEER.play();
     }
     for (const side of sides) {
         for (const p of side.players) {
@@ -469,6 +487,7 @@ function tick(ms) {
         if (!animReady(ms)) { return; }
         if (headDemonY != sides[initialHeadSide].players[initialHeadIndex].y + 1) {
             headDemonY++;
+            S_MOVE.play();
             return;
         }
         headDemonHasBeheaded = true;
@@ -484,6 +503,7 @@ function tick(ms) {
     }
     if (headDemonY != 0) {
         if (!animReady(ms)) { return; }
+        S_MOVE.play();
         headDemonY--;
         return;
     }
@@ -590,6 +610,7 @@ function tick(ms) {
                 const cost = PASS_BASE + Math.ceil((Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y)) / PASS_COST_DIV);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
+                    S_THROW.play();
                     const intercept = findIntercept(selection, target);
                     if (intercept) {
                         target = intercept;
@@ -614,12 +635,14 @@ function tick(ms) {
                                             sides[1].score++;
                                             addParticles(20, 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
                                             impExcitement = 5000;
+                                            S_CHEER.play();
                                         }
                                     } else {
                                         if ((a.source.x == FIELD_W - 1 && target.x == FIELD_W - 1) && ((a.source.y > hoopY && target.y < hoopY) || (a.source.y < hoopY && target.y > hoopY))) {
                                             sides[0].score++;
                                             addParticles(20, FIELD_W - 0.5, hoopY, 1.5, 0, target.y > hoopY ? 0.005 : -0.005, 0, 0.002);
                                             impExcitement = 5000;
+                                            S_CHEER.play();
                                         }
                                     }
                                 }
@@ -638,6 +661,7 @@ function tick(ms) {
                 const cost = Math.abs(clickT.x - selection.x) + Math.abs(clickT.y - selection.y);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
+                    S_MOVE.play();
                     anims.push({
                         time: 0,
                         player: selection,
@@ -672,6 +696,7 @@ function tick(ms) {
                 const cost = TACKLE_COST + Math.abs(hoverTile.x - selection.x) + Math.abs(hoverTile.y - selection.y);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
+                    S_MOVE.play();
                     const offset = findTackleOffset(selection, target);
                     anims.push({
                         time: 0,
@@ -684,6 +709,7 @@ function tick(ms) {
                             a.player.y = lerp(a.source.y, a.target.y, a.time / 200);
                             timg(PLAYER[a.player.side], a.player.x, a.player.y);
                             if (a.time >= 200) {
+                                S_TACKLE.play();
                                 a.player.x = a.target.x;
                                 a.player.y = a.target.y;
                                 addParticles(10, a.target.x + 0.5, a.target.y + 1, 0.5, offset.dx * 0.005, offset.dy * 0.005, 0, 0.002);
