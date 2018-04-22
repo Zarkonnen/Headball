@@ -2,6 +2,10 @@ function clamp(v, low, high) {
     return Math.max(low, Math.min(high, v));
 }
 
+function lerp(a, b, amt) {
+    return a * (1 - amt) + b * amt;
+}
+
 function count(it, v) {
     let n = 0;
     for (const item of it) {

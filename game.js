@@ -65,6 +65,9 @@ var initialHeadSide = 0;
 var headDemonY = 0;
 var beheadingPause = 0;
 
+// Anims
+var anims = [];
+
 // Particles
 var particles = [];
 function addParticles(n, x, y, z, dx, dy, dz, dRandom) {
@@ -107,8 +110,9 @@ function doParticles(ms) {
             p.dx = 0;
             p.dy = 0;
             p.dz = 0;
+        } else {
+            c.fillRect((p.x + FIELD_LEFT_TILES) * TILE_W, (p.y - p.z + FIELD_TOP_TILES) * TILE_H, SCALE, SCALE);
         }
-        c.fillRect((p.x + FIELD_LEFT_TILES) * TILE_W, (p.y - p.z + FIELD_TOP_TILES) * TILE_H, SCALE, SCALE);
     }
 }
 
@@ -476,6 +480,17 @@ function tick(ms) {
         return;
     }
     
+    // Animation
+    if (anims.length > 0) {
+        for (var i = 0; i < anims.length; i++) {
+            if (anims[i].tick(anims[i], ms)) {
+                anims.splice(i, 1);
+                i--;
+            }
+        }
+        return;
+    }
+    
     // Control Panel
     sideSlideIn = Math.min(0, sideSlideIn + ms * 2);
     const side = sides[currentSide];
@@ -598,15 +613,31 @@ function tick(ms) {
                 const cost = Math.abs(clickT.x - selection.x) + Math.abs(clickT.y - selection.y);
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
-                    selection.x = clickT.x;
-                    selection.y = clickT.y;
-                    if (head.carrier == selection) {
-                        head.x = clickT.x;
-                        head.y = clickT.y;
-                    } else if (head.x == clickT.x && head.y == clickT.y) {
-                        head.carrier = selection;
-                    }
-                    nextTurn();
+                    anims.push({
+                        time: 0,
+                        player: selection,
+                        source: {x: selection.x, y: selection.y},
+                        target: clickT,
+                        tick: function(a, ms) {
+                            a.time = Math.min(200, a.time + ms);
+                            a.player.x = lerp(a.source.x, a.target.x, a.time / 200);
+                            a.player.y = lerp(a.source.y, a.target.y, a.time / 200);
+                            timg(PLAYER[a.player.side], a.player.x, a.player.y);
+                            if (a.time >= 200) {
+                                a.player.x = clickT.x;
+                                a.player.y = clickT.y;
+                                if (head.carrier == a.player) {
+                                    head.x = clickT.x;
+                                    head.y = clickT.y;
+                                } else if (head.x == clickT.x && head.y == clickT.y) {
+                                    head.carrier = a.player;
+                                }
+                                nextTurn();
+                                return true;
+                            }
+                            return false;
+                        }
+                    });
                     return;
                 }
             }
@@ -617,26 +648,42 @@ function tick(ms) {
                 if (cost <= selection.energy) {
                     selection.energy -= cost;
                     const offset = findTackleOffset(selection, target);
-                    selection.x = clickT.x;
-                    selection.y = clickT.y;
-                    addParticles(10, clickT.x + 0.5, clickT.y + 1, 0.5, offset.dx * 0.005, offset.dy * 0.005, 0, 0.002);
-                    target.x += offset.dx;
-                    target.y += offset.dy;
-                    target.energy = Math.max(0, target.energy - TACKLE_COST);
-                    if (head.carrier == target) {
-                        head.x += offset.dx;
-                        head.y += offset.dy;
-                        if (offset.giveHeadTo) {
-                            head.carrier = offset.giveHeadTo;
-                            head.x = offset.giveHeadTo.x;
-                            head.y = offset.giveHeadTo.y;
-                        } else if (offset.dropHead) {
-                            head.x += offset.dx;
-                            head.y += offset.dy;
-                            head.carrier = null;
+                    anims.push({
+                        time: 0,
+                        player: selection,
+                        source: {x: selection.x, y: selection.y},
+                        target: target,
+                        tick: function(a, ms) {
+                            a.time = Math.min(200, a.time + ms);
+                            a.player.x = lerp(a.source.x, a.target.x, a.time / 200);
+                            a.player.y = lerp(a.source.y, a.target.y, a.time / 200);
+                            timg(PLAYER[a.player.side], a.player.x, a.player.y);
+                            if (a.time >= 200) {
+                                a.player.x = a.target.x;
+                                a.player.y = a.target.y;
+                                addParticles(10, a.target.x + 0.5, a.target.y + 1, 0.5, offset.dx * 0.005, offset.dy * 0.005, 0, 0.002);
+                                a.target.x += offset.dx;
+                                a.target.y += offset.dy;
+                                target.energy = Math.max(0, target.energy - TACKLE_COST);
+                                if (head.carrier == target) {
+                                    head.x += offset.dx;
+                                    head.y += offset.dy;
+                                    if (offset.giveHeadTo) {
+                                        head.carrier = offset.giveHeadTo;
+                                        head.x = offset.giveHeadTo.x;
+                                        head.y = offset.giveHeadTo.y;
+                                    } else if (offset.dropHead) {
+                                        head.x += offset.dx;
+                                        head.y += offset.dy;
+                                        head.carrier = null;
+                                    }
+                                }
+                                nextTurn();
+                                return true;
+                            }
+                            return false;
                         }
-                    }
-                    nextTurn();
+                    });
                     return;
                 }
             }
