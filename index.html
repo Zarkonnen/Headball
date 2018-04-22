@@ -1,0 +1,81 @@
+<!DOCTYPE html>
+<html style="margin: 0; padding: 0;">
+    <head>
+        <title>Headball</title>
+        <script src="jquery-3.1.1.min.js"></script>
+        <script src="howler.min.js"></script>
+    </head>
+    <body style="margin: 0; padding: 0; background: #23181e; text-align: center;">
+        <canvas width="1092" height="800" allowfullscreen="true" id="gameCanvas" style="margin: 0; padding: 0;"></canvas>
+        <script src="util.js"></script>
+        <script src="game.js"></script>
+        <script>
+
+var images = {};
+
+var spritesheet = new Image();
+spritesheet.src = "spritesheet.png";
+
+function img(img, x, y) {
+    if (img == null) { return; }
+    c.drawImage(spritesheet, img.x, img.y, img.w, img.h, x, y, img.w, img.h);
+}
+
+var canvas = document.getElementById("gameCanvas");
+var c = canvas.getContext("2d");
+var keys = {};
+var keyCodes = {};
+var click = null;
+var mouseDown = false;
+var cursor = {x: 300, y: 300};
+
+// Listen for key presses.
+function canvasKeyUp(e) {
+    keyCodes[e.which] = true;
+    keys[String.fromCharCode(e.which)] = true;
+}
+
+function pressed(key) {
+    return !!keys[key] || !!keyCodes[key];
+}
+
+$('body').keyup(canvasKeyUp);
+
+// Listen for mouse stuff.
+function canvasClick(e) {
+    click = { "x": e.offsetX, "y": e.offsetY };
+}
+
+function canvasMouseDown(e) {
+    mouseDown = true;
+}
+
+function canvasMouseUp(e) {
+    mouseDown = false;
+}
+
+function canvasMove(e) {
+    cursor = { "x": e.offsetX, "y": e.offsetY };
+}
+
+$('#gameCanvas').click(canvasClick).mousemove(canvasMove).mousedown(canvasMouseDown).mouseup(canvasMouseUp);
+
+// Set up game loop.
+var requestAnimationFrame = window.requestAnimationFrame || window.mozRequestAnimationFrame || window.webkitRequestAnimationFrame || window.msRequestAnimationFrame;
+var lastUpdate = new Date().getTime();
+
+function nextFrame() {
+    var currentTime = new Date().getTime();
+    tick(currentTime - lastUpdate);
+    keys = {};
+    keyCodes = {};
+    click = null;
+    lastUpdate = currentTime;
+    requestAnimationFrame(nextFrame);
+}
+
+// Once everything is set up, start game loop.
+requestAnimationFrame(nextFrame);
+        </script>
+    </body>
+</html>
